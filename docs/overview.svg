@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="900" height="260" viewBox="0 0 900 260">
-<rect width="900" height="260" rx="20" fill="#101827"/>
-<text x="450" y="45" text-anchor="middle" fill="#f8fafc" font-size="22" font-family="Segoe UI,Microsoft YaHei,sans-serif">USB MONITOR · 功能示意</text>
+<rect width="900" height="260" rx="20" fill="#141414"/>
+<text x="450" y="45" text-anchor="middle" fill="#ffffff" font-size="22" font-family="Segoe UI,Microsoft YaHei,sans-serif">USB MONITOR · 功能示意</text>
 <g font-family="Segoe UI,Microsoft YaHei,sans-serif" text-anchor="middle">
-<rect x="30" y="80" width="260" height="140" rx="12" fill="#20324c"/>
-<rect x="320" y="80" width="260" height="140" rx="12" fill="#20324c"/>
-<rect x="610" y="80" width="260" height="140" rx="12" fill="#20324c"/>
-<g fill="#67e8f9" font-size="25"><text x="160" y="125">硬件检测</text><text x="450" y="125">名称/属性</text><text x="740" y="125">文件变化</text></g>
-<g fill="#dbeafe" font-size="17"><text x="160" y="165">设备标识 · 存储卷</text><text x="450" y="165">只读巡检 · 线索提示</text><text x="740" y="165">创建 · 修改 · 重命名 · 删除</text><text x="160" y="196">USB 连接信息</text><text x="450" y="196">不读取文件内容</text><text x="740" y="196">后台监听 · 托盘运行</text></g></g></svg>
+<rect x="30" y="80" width="260" height="140" rx="12" fill="#333333"/>
+<rect x="320" y="80" width="260" height="140" rx="12" fill="#333333"/>
+<rect x="610" y="80" width="260" height="140" rx="12" fill="#333333"/>
+<g fill="#ffffff" font-size="25"><text x="160" y="125">扫描与查询</text><text x="450" y="125">监听与行为</text><text x="740" y="125">手动阻断</text></g>
+<g fill="#cccccc" font-size="17"><text x="160" y="165">设备信息 · 名称/属性</text><text x="450" y="165">文件变化 · 关联进程</text><text x="740" y="165">禁用设备 · 启用恢复</text><text x="160" y="196">查看扫描结果</text><text x="450" y="196">后台监听 · 托盘运行</text><text x="740" y="196">由用户选择操作</text></g></g></svg>
