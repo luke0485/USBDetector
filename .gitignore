@@ -1,0 +1,9 @@
+*-test-results.json
+watcher-test-*/
+*.result
+*.log
+*.tmp
+USB检测测试报告.md
+Clean-LegacyUsbData.ps1
+Repair-InstalledShortcuts.ps1
+__pycache__/
