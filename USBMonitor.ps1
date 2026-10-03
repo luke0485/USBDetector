@@ -289,7 +289,8 @@ function Set-ListTheme([System.Windows.Forms.ListView] $List) {
     })
     $List.Add_DrawSubItem({
         param($sender, $eventArgs)
-        $eventArgs.Graphics.FillRectangle([System.Drawing.Brushes]::Black, $eventArgs.Bounds)
+        $background = if ($eventArgs.Item.Selected) { [System.Drawing.SystemBrushes]::Highlight } else { [System.Drawing.Brushes]::Black }
+        $eventArgs.Graphics.FillRectangle($background, $eventArgs.Bounds)
         $eventArgs.Graphics.DrawRectangle([System.Drawing.Pens]::White, $eventArgs.Bounds.X, $eventArgs.Bounds.Y, ($eventArgs.Bounds.Width - 1), ($eventArgs.Bounds.Height - 1))
         $format = New-Object System.Drawing.StringFormat
         $format.LineAlignment = [System.Drawing.StringAlignment]::Center
@@ -841,7 +842,7 @@ function Drain-FileEvents {
         $count++
     }
     foreach ($drive in @($fileChangeCounts.Keys)) {
-        [void]$script:fileEventList.Items.Insert(0,('{0}  USB {1} 文件系统变化 {2} 条；只统计事件，不统计复制量，不判危险' -f (Get-Date -Format 'HH:mm:ss'),$drive,$fileChangeCounts[$drive]))
+        [void]$script:fileEventList.Items.Insert(0,('{0}  USB {1} 文件变化 {2} 条' -f (Get-Date -Format 'HH:mm:ss'),$drive,$fileChangeCounts[$drive]))
     }
     while ($script:fileEventList.Items.Count -gt 200) { $script:fileEventList.Items.RemoveAt($script:fileEventList.Items.Count - 1) }
 }
@@ -1163,21 +1164,15 @@ function Refresh-Views($Snapshot) {
         $currentDevices[$device.InstanceId] = $device
         $item = New-Object System.Windows.Forms.ListViewItem([string]$device.Type)
         $item.Tag = [string]$device.InstanceId
-        $item.Selected = $selectedDeviceIds.ContainsKey([string]$device.InstanceId)
         [void]$item.SubItems.Add([string]$device.Name)
         [void]$item.SubItems.Add([string]$device.Status)
         [void]$item.SubItems.Add([string]$device.Class)
         [void]$script:deviceList.Items.Add($item)
+        $item.Selected = $selectedDeviceIds.ContainsKey([string]$device.InstanceId)
         if (!$script:hasInitialSnapshot) {
             Add-LogLine ('已连接  {0}  {1}' -f $device.Type, $device.Name)
         } elseif (!$script:knownDevices.ContainsKey($device.InstanceId)) {
             Add-LogLine ('检测到设备  {0}  {1}' -f $device.Type, $device.Name)
-        }
-        if (!$script:hasInitialSnapshot -or !$script:knownDevices.ContainsKey($device.InstanceId)) {
-            $explanation = Get-UsbDeviceExplanation $device
-            if ($explanation) {
-                [void]$script:fileEventList.Items.Insert(0,('{0}  USB 接口说明  {1}' -f (Get-Date -Format 'HH:mm:ss'),$explanation))
-            }
         }
     }
     foreach ($cachedId in @($script:containerIdCache.Keys)) {
@@ -1326,6 +1321,7 @@ $script:deviceList.Size = New-Object System.Drawing.Size(982, 178)
 $script:deviceList.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right
 $script:deviceList.View = [System.Windows.Forms.View]::Details
 $script:deviceList.FullRowSelect = $true
+$script:deviceList.MultiSelect = $false
 $script:deviceList.GridLines = $true
 $script:deviceList.HideSelection = $false
 $script:deviceList.BackColor = [System.Drawing.Color]::Black
@@ -1383,7 +1379,7 @@ $script:emptyVolumes.BackColor = [System.Drawing.Color]::Black
 $form.Controls.Add($script:emptyVolumes)
 
 $fileHeading = New-Object System.Windows.Forms.Label
-$fileHeading.Text = '文件变化'
+$fileHeading.Text = 'USB行为'
 $fileHeading.Location = New-Object System.Drawing.Point(26, 493)
 $fileHeading.Size = New-Object System.Drawing.Size(850, 22)
 $fileHeading.Font = New-Object System.Drawing.Font('Consolas', 10, [System.Drawing.FontStyle]::Bold)
@@ -1407,6 +1403,7 @@ $eventHeading.Font = New-Object System.Drawing.Font('Consolas', 10, [System.Draw
 $form.Controls.Add($eventHeading)
 
 $script:logList = New-Object System.Windows.Forms.ListBox
+$script:logList.SelectionMode = [System.Windows.Forms.SelectionMode]::None
 $script:logList.Location = New-Object System.Drawing.Point(24, 663)
 $script:logList.Size = New-Object System.Drawing.Size(982, 105)
 $script:logList.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right
@@ -1495,7 +1492,7 @@ $form.Controls.Add($footer)
 
 try { Initialize-StartupDefault } catch { Add-LogLine ('默认开机自启设置失败：{0}' -f $_.Exception.Message) }
 Update-StartupUi
-Add-LogLine '监听器已启动；USB 只检查设备枚举、文件名/属性和 USB 关联程序链，不读取文件内容'
+Add-LogLine '监听器已启动；USB 设备、文件变化与关联进程监听已开启'
 . (Join-Path $PSScriptRoot 'AsyncMonitor.ps1')
 Start-UsbBackgroundMonitors
 try {
