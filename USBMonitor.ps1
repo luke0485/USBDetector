@@ -25,6 +25,11 @@ $script:instanceMutex = New-Object System.Threading.Mutex($true, 'Local\USBDetec
 if (!$script:instanceMutexOwned) {
     if (!$Tray) {
         try {
+            $showRequest = [Threading.EventWaitHandle]::OpenExisting('Local\USBDetector.ShowWindow')
+            try { [void]$showRequest.Set() } finally { $showRequest.Dispose() }
+            exit 0
+        } catch {}
+        try {
             Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
@@ -43,6 +48,7 @@ public static class UsbDetectorWindowActivation {
     }
     exit 0
 }
+$script:showWindowRequest = [Threading.EventWaitHandle]::new($false, [Threading.EventResetMode]::AutoReset, 'Local\USBDetector.ShowWindow')
 $script:powershellPath = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 if (!(Test-Path -LiteralPath $script:powershellPath)) { $script:powershellPath = Join-Path $PSHOME 'powershell.exe' }
 $script:wscriptPath = Join-Path $env:SystemRoot 'System32\wscript.exe'
@@ -1516,6 +1522,12 @@ try {
 $script:scanTimer = New-Object System.Windows.Forms.Timer
 $script:scanTimer.Interval = 150
 $script:scanTimer.Add_Tick({
+    if ($script:showWindowRequest.WaitOne(0)) {
+        $script:startHidden = $false
+        $script:form.Show()
+        $script:form.WindowState = [System.Windows.Forms.FormWindowState]::Normal
+        $script:form.Activate()
+    }
     try { Receive-UsbBackgroundResults; Drain-FileEvents; Check-PendingOperations } catch { Add-LogLine ('刷新失败：{0}' -f $_.Exception.Message) }
 })
 $script:scanTimer.Start()
@@ -1544,6 +1556,7 @@ $form.Add_FormClosed({
     if ($script:trayMenu) { $script:trayMenu.Dispose() }
     if ($script:logoPicture.Image) { $script:logoPicture.Image.Dispose() }
     if ($script:appIcon) { $script:appIcon.Dispose() }
+    if ($script:showWindowRequest) { $script:showWindowRequest.Dispose() }
     if ($script:instanceMutex -and $script:instanceMutexOwned) { try { $script:instanceMutex.ReleaseMutex() } catch {}; $script:instanceMutex.Dispose() }
 })
 [System.Windows.Forms.Application]::Run($form)
