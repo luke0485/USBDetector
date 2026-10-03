@@ -1379,7 +1379,7 @@ $script:emptyVolumes.BackColor = [System.Drawing.Color]::Black
 $form.Controls.Add($script:emptyVolumes)
 
 $fileHeading = New-Object System.Windows.Forms.Label
-$fileHeading.Text = 'USB行为'
+$fileHeading.Text = '文件变化'
 $fileHeading.Location = New-Object System.Drawing.Point(26, 493)
 $fileHeading.Size = New-Object System.Drawing.Size(850, 22)
 $fileHeading.Font = New-Object System.Drawing.Font('Consolas', 10, [System.Drawing.FontStyle]::Bold)
@@ -1396,7 +1396,7 @@ $script:fileEventList.Font = New-Object System.Drawing.Font('Consolas', 8)
 $form.Controls.Add($script:fileEventList)
 
 $eventHeading = New-Object System.Windows.Forms.Label
-$eventHeading.Text = 'EVENT LOG  //  USB 插拔、元数据线索与设备操作'
+$eventHeading.Text = 'USB行为'
 $eventHeading.Location = New-Object System.Drawing.Point(26, 638)
 $eventHeading.Size = New-Object System.Drawing.Size(700, 22)
 $eventHeading.Font = New-Object System.Drawing.Font('Consolas', 10, [System.Drawing.FontStyle]::Bold)
