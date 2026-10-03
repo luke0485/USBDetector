@@ -21,3 +21,9 @@ $script:pendingOperations=@{123=[pscustomobject]@{Operation='No-report test';Rep
 Check-PendingOperations
 if($script:testLogs.Count -ne 1 -or $script:testLogs[0] -match '系统命令已完成'){throw 'Missing report falsely marked success'}
 Write-Output 'PASS container grouping and operation result validation'
+
+function Get-Process { param($Id,$ErrorAction) [pscustomobject]@{StartTime=[datetime]::Now} }
+$script:pendingOperations=@{123=[pscustomobject]@{Operation='PID reuse test';ProcessStartTime=1L;ReportPath=(Join-Path $PSScriptRoot 'missing-pid-reuse.result')}}
+Check-PendingOperations
+if($script:pendingOperations.Count -ne 0){throw 'Reused PID blocked operation completion'}
+Write-Output 'PASS reused PID does not block operation completion'

@@ -35,6 +35,8 @@ try {
     $result | Select-Object Created,Renamed,Deleted,DoubleExtensionNotice,OrdinaryTextNotice | ConvertTo-Json
     if (-not ($result.Created -and $result.Renamed -and $result.Deleted)) { throw 'File event test failed' }
 } finally {
+    $sourceIds=@($script:fileWatcherSources[$testRoot])
     Remove-VolumeWatcher $testRoot
+    foreach($sourceId in $sourceIds){if(Get-Job -Name $sourceId -ErrorAction SilentlyContinue){throw 'Watcher event job leaked'}}
     if (([IO.Path]::GetFullPath($testRoot)).StartsWith($PSScriptRoot + '\',[StringComparison]::OrdinalIgnoreCase)) { Remove-Item -LiteralPath $testRoot -Recurse -Force }
 }

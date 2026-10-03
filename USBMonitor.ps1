@@ -594,6 +594,8 @@ function Invoke-UsbProcessPoll {
 function Add-VolumeWatcher([string] $Drive) {
     $root = $Drive + '\'
     if ($script:fileWatchers.ContainsKey($Drive) -or !(Test-Path -LiteralPath $root)) { return }
+    $watcher = $null
+    $ids = @()
     try {
         $watcher = New-Object System.IO.FileSystemWatcher
         $watcher.Path = $root
@@ -632,11 +634,21 @@ function Add-VolumeWatcher([string] $Drive) {
         $script:fileWatchers[$Drive] = $watcher
         $script:fileWatcherSources[$Drive] = $ids
         Add-LogLine ('文件名/属性变化监听已开启  {0}  （不读取文件内容）' -f $Drive)
-    } catch { Add-LogLine ('文件监听未能开启 {0}：{1}' -f $Drive, $_.Exception.Message) }
+    } catch {
+        foreach ($sourceId in $ids) {
+            Unregister-Event -SourceIdentifier $sourceId -ErrorAction SilentlyContinue
+            Get-Job -Name $sourceId -ErrorAction SilentlyContinue | Remove-Job -Force -ErrorAction SilentlyContinue
+        }
+        if ($null -ne $watcher) { $watcher.Dispose() }
+        Add-LogLine ('文件监听未能开启 {0}：{1}' -f $Drive, $_.Exception.Message)
+    }
 }
 function Remove-VolumeWatcher([string] $Drive) {
     if ($script:fileWatcherSources.ContainsKey($Drive)) {
-        foreach ($sourceId in $script:fileWatcherSources[$Drive]) { Unregister-Event -SourceIdentifier $sourceId -ErrorAction SilentlyContinue }
+        foreach ($sourceId in $script:fileWatcherSources[$Drive]) {
+            Unregister-Event -SourceIdentifier $sourceId -ErrorAction SilentlyContinue
+            Get-Job -Name $sourceId -ErrorAction SilentlyContinue | Remove-Job -Force -ErrorAction SilentlyContinue
+        }
         $script:fileWatcherSources.Remove($Drive)
     }
     if ($script:fileWatchers.ContainsKey($Drive)) {
@@ -842,7 +854,9 @@ function Start-Worker([string] $Operation, [string] $Body, [bool] $Elevate) {
     }
     if ($Elevate) { $parameters.Verb = 'RunAs' }
     $process = Start-Process @parameters
-    $script:pendingOperations[$process.Id] = [pscustomobject]@{ Operation = $Operation; ReportPath = $reportPath }
+    $processStartTime = 0L
+    try { $processStartTime = $process.StartTime.ToFileTimeUtc() } catch {}
+    $script:pendingOperations[$process.Id] = [pscustomobject]@{ Operation = $Operation; ReportPath = $reportPath; ProcessStartTime = $processStartTime }
     Add-LogLine ('已启动 {0}{1}' -f $Operation, $(if ($Elevate) { '（等待系统权限确认）' } else { '' }))
 }
 function Start-UsbMetadataInventory([string[]] $Paths, [string] $Source) {
@@ -1055,8 +1069,12 @@ if ($disabledCount -ne $instanceIds.Count -or $failures.Count -gt 0) { throw ('�
 }
 function Check-PendingOperations {
     foreach ($processId in @($script:pendingOperations.Keys)) {
-        if (Get-Process -Id $processId -ErrorAction SilentlyContinue) { continue }
         $entry = $script:pendingOperations[$processId]
+        $running = Get-Process -Id $processId -ErrorAction SilentlyContinue
+        if ($running) {
+            if (-not $entry.PSObject.Properties['ProcessStartTime'] -or $entry.ProcessStartTime -le 0) { continue }
+            try { if ($running.StartTime.ToFileTimeUtc() -eq $entry.ProcessStartTime) { continue } } catch { continue }
+        }
         $result = ''
         if (Test-Path -LiteralPath $entry.ReportPath) {
             try { $result = [System.IO.File]::ReadAllText($entry.ReportPath,[System.Text.Encoding]::Unicode) } catch {}
