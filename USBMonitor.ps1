@@ -383,6 +383,7 @@ function Invoke-RiskAlert([string] $Title, [string] $Body, [string] $Key) {
     Show-RiskNotification $Title $Body
 }
 function Get-UsbFileMetadataNotice([string] $Drive, [string] $Kind, [string] $Path, [System.IO.FileAttributes] $Attributes = [System.IO.FileAttributes]::Normal) {
+    if ($Attributes -band [System.IO.FileAttributes]::Directory) { return $null }
     if ($Kind -notin @('CREATED','CHANGED','RENAMED')) { return $null }
     $targetPath = $Path
     $arrow = $targetPath.LastIndexOf(' -> ')
@@ -393,16 +394,16 @@ function Get-UsbFileMetadataNotice([string] $Drive, [string] $Kind, [string] $Pa
     $detail = ''
     $needsReview = $false
     if ($leaf -ieq 'autorun.inf') {
-        $detail = '出现名为 autorun.inf 的文件；只看到了名称，内容未读取，无法判断用途。'
+        $detail = '检测到文件：autorun.inf'
         $needsReview = $true
     } elseif ($leaf -match '(?i)\.(pdf|docx?|xlsx?|pptx?|jpg|jpeg|png|txt|zip|rar)\.(exe|scr|com|bat|cmd|ps1|vbs|js|hta|wsf|msi)$') {
-        $detail = '文件名呈“文档/图片后缀 + 可执行后缀”；这只是名称线索，不能据此判定恶意。'
+        $detail = '文件名包含双扩展名。'
         $needsReview = $true
     } elseif (($Attributes -band ([System.IO.FileAttributes]::Hidden -bor [System.IO.FileAttributes]::System)) -and $extension -in @('.exe','.scr','.com','.bat','.cmd','.ps1','.vbs','.js','.hta','.msi')) {
-        $detail = '可执行/脚本类名称带隐藏或系统属性；仅凭属性不能确认恶意。'
+        $detail = '执行类文件带隐藏或系统属性。'
         $needsReview = $true
     } elseif ($extension -in @('.exe','.dll','.scr','.com','.bat','.cmd','.ps1','.psm1','.vbs','.js','.hta','.wsf','.msi','.lnk','.url')) {
-        $detail = ('检测到执行类或快捷方式文件名 {0}；未读取文件内容，也未判定安全性。' -f $leaf)
+        $detail = ('检测到文件：{0}' -f $leaf)
     } else { return $null }
     return [pscustomobject]@{ Drive=$Drive; Kind=$Kind; Path=$targetPath; Name=$leaf; Detail=$detail; NeedsReview=$needsReview }
 }
@@ -435,7 +436,7 @@ function Get-UsbCompositeDeviceWarnings([object[]] $Devices) {
             $warnings.Add([pscustomobject]@{
                 Key=[string]$group.Name
                 Title='USB 复合接口提示'
-                Body=('同一设备容器同时报告存储与键盘 HID 接口（{0}）。这也可能是正常复合设备；枚举信息不能证明“伪装”。若你没插入含键盘功能的设备，请确认来源或阻断。' -f $deviceNames)
+                Body=('同一设备同时检测到存储和键盘接口：{0}' -f $deviceNames)
             })
         }
     }
@@ -443,7 +444,7 @@ function Get-UsbCompositeDeviceWarnings([object[]] $Devices) {
 }
 function Get-UsbDeviceExplanation($Device) {
     if ([string]$Device.Type -eq '键盘') {
-        return ('检测到 USB 键盘/HID 接口（{0}）。这是设备枚举事实，不代表恶意；仅凭接口类型不能判断是否伪装或是否注入按键。若不是你预期接入的键盘，可选中该设备并阻断。' -f [string]$Device.Name)
+        return ('检测到键盘接口：{0}' -f [string]$Device.Name)
     }
     return ''
 }
@@ -760,8 +761,8 @@ function Get-UsbTransferHint($Record) {
         } elseif ($localPosition -lt 0) { $localPosition = $index }
     }
     if ($usbPosition -lt 0 -or $localPosition -lt 0) { return '' }
-    if ($localPosition -lt $usbPosition) { return '  [传输方向提示：本机 → USB；属于复制线索，不据此判危险]' }
-    return '  [传输方向提示：USB → 本机；属于复制线索，不据此判危险]'
+    if ($localPosition -lt $usbPosition) { return '  [命令行包含文件操作及 USB 路径]' }
+    return '  [命令行包含文件操作及 USB 路径]'
 }
 function Get-UsbPathReferenceHint($Record) {
     $commandLine = [string]$Record.CommandLine
@@ -813,6 +814,8 @@ function Drain-FileEvents {
                 $arrow = $targetPath.LastIndexOf(' -> ')
                 if ($arrow -ge 0) { $targetPath = $targetPath.Substring($arrow + 4) }
                 $attributes = [System.IO.FileAttributes][int]$parts[3]
+                $changeName = switch ($kind) { 'CREATED' { '创建' } 'CHANGED' { '修改' } 'RENAMED' { '重命名' } 'DELETED' { '删除' } default { $kind } }
+                [void]$script:fileEventList.Items.Insert(0,('{0}  {1}  {2}' -f (Get-Date -Format 'HH:mm:ss'),$changeName,$path))
                 $notice = Get-UsbFileMetadataNotice $drive $kind $path $attributes
                 if ($notice) {
                     $noticeKey = $notice.Kind + '|' + $notice.Path
@@ -820,7 +823,7 @@ function Drain-FileEvents {
                         $fileNoticesSeen[$noticeKey] = $true
                         $line = '{0}  USB 文件线索  {1}  {2}' -f (Get-Date -Format 'HH:mm:ss'),$notice.Name,$notice.Detail
                         [void]$script:fileEventList.Items.Insert(0,$line)
-                        if ($notice.NeedsReview) { Add-LogLine ('需核实的 USB 名称/属性线索；不是病毒确诊：' + $notice.Name) }
+                        if ($notice.NeedsReview) { Add-LogLine ('USB 文件属性：' + $notice.Name) }
                     }
                 }
             }
@@ -834,7 +837,7 @@ function Drain-FileEvents {
                 $reason = Get-UsbProcessRiskReason $processInfo
                 if ($reason) {
                     $line += '  [命令行线索，未确认执行结果]'
-                    Invoke-RiskAlert 'USB 程序行为线索' ($chainText + '；观察到命令行特征：' + $reason + '。这不是恶意确诊。') ('PROCESS|' + [string]$processInfo.DeviceInstanceId + '|' + $reason)
+                    Add-LogLine ('命令行特征：' + $reason + '  ' + [string]$processInfo.Image)
                 }
                 [void]$script:fileEventList.Items.Insert(0,$line)
             } catch { [void]$script:fileEventList.Items.Insert(0,('{0}  USB 进程事件无法解析' -f (Get-Date -Format 'HH:mm:ss'))) }
@@ -944,9 +947,9 @@ while ($queue.Count -gt 0 -and $entries -lt $maxEntries) {
             if ($findings.Count -ge $maxFindings) { continue }
             $extension = [System.IO.Path]::GetExtension($leaf).ToLowerInvariant()
             $reason = ''
-            if ($leaf -ieq 'autorun.inf') { $reason = '出现名为 autorun.inf 的文件；内容未读取，无法判断用途。' }
-            elseif ($leaf -match '(?i)\.(pdf|docx?|xlsx?|pptx?|jpg|jpeg|png|txt|zip|rar)\.(exe|scr|com|bat|cmd|ps1|vbs|js|hta|wsf|msi)$') { $reason = '文件名呈双扩展格式；这是名称线索，不是恶意判定。' }
-            elseif (($attributes -band ([System.IO.FileAttributes]::Hidden -bor [System.IO.FileAttributes]::System)) -and $extension -in $executionExtensions) { $reason = '执行类或快捷方式名称带隐藏/系统属性；仅凭属性不能确认恶意。' }
+            if ($leaf -ieq 'autorun.inf') { $reason = '检测到文件：autorun.inf' }
+            elseif ($leaf -match '(?i)\.(pdf|docx?|xlsx?|pptx?|jpg|jpeg|png|txt|zip|rar)\.(exe|scr|com|bat|cmd|ps1|vbs|js|hta|wsf|msi)$') { $reason = '文件名包含双扩展名。' }
+            elseif (($attributes -band ([System.IO.FileAttributes]::Hidden -bor [System.IO.FileAttributes]::System)) -and $extension -in $executionExtensions) { $reason = '执行类文件或快捷方式带隐藏/系统属性。' }
             if ($reason) { $findings.Add([pscustomobject]@{ Path=$entry; Reason=$reason }) }
         }
     } catch { $unreadable++ }

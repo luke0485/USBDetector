@@ -12,6 +12,7 @@ $script:fileWatchers=@{}; $script:fileWatcherSources=@{}; $script:fileWatcherRec
 $testRoot=Join-Path $PSScriptRoot ('watcher-test-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $testRoot | Out-Null
 try {
+    if(Get-UsbFileMetadataNotice 'D:' 'CREATED' 'D:\folder.exe' ([IO.FileAttributes]::Directory)){throw 'Directory misclassified as executable file'}
     Add-VolumeWatcher $testRoot
     $file=Join-Path $testRoot 'probe.txt'
     [IO.File]::WriteAllBytes($file,[byte[]]@())
